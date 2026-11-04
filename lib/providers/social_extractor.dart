@@ -568,9 +568,13 @@ class RedditExtractor extends VideoExtractor {
       if (response.statusCode != 200) return null;
       final data = jsonDecode(response.body);
 
-      final post = data is List
-          ? data[0]?['data']?['children']?[0]?['data']
-          : data['data']?['children']?[0]?['data'];
+      Map<String, dynamic>? post;
+      try {
+        final listing = data is List ? data[0] : data;
+        post = listing['data']['children'][0]['data'] as Map<String, dynamic>?;
+      } catch (_) {
+        return null;
+      }
       if (post == null) return null;
 
       final title = post['title'] as String? ?? 'Reddit Video';

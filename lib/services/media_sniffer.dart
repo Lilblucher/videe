@@ -60,7 +60,12 @@ class MediaSniffer extends ChangeNotifier {
   bool get hasMedia => _detectedMedia.isNotEmpty;
 
   static final _mediaExtensions = RegExp(
-    r'\.(mp4|webm|m3u8|ts|flv|mkv|avi|mov|wmv|mp3|m4a|aac|ogg|wav)(\?|$|#)',
+    r'\.(mp4|webm|m3u8|flv|mkv|avi|mov|wmv|mp3|m4a|aac|ogg|wav)(\?|$|#)',
+    caseSensitive: false,
+  );
+
+  static final _tsSegmentPattern = RegExp(
+    r'\.ts\?',
     caseSensitive: false,
   );
 
@@ -77,12 +82,34 @@ class MediaSniffer extends ChangeNotifier {
     RegExp(r'\.gif(\?|$)', caseSensitive: false),
     RegExp(r'\.js(\?|$)', caseSensitive: false),
     RegExp(r'\.css(\?|$)', caseSensitive: false),
+    RegExp(r'\.html?(\?|$)', caseSensitive: false),
+    RegExp(r'\.php(\?|$)', caseSensitive: false),
     RegExp(r'favicon', caseSensitive: false),
     RegExp(r'googleads', caseSensitive: false),
     RegExp(r'doubleclick', caseSensitive: false),
     RegExp(r'ad[sv]ert', caseSensitive: false),
     RegExp(r'googlesyndication', caseSensitive: false),
     RegExp(r'facebook\.com/tr', caseSensitive: false),
+    RegExp(r'youtube\.com/watch', caseSensitive: false),
+    RegExp(r'youtube\.com/@', caseSensitive: false),
+    RegExp(r'youtube\.com/channel', caseSensitive: false),
+    RegExp(r'youtube\.com/shorts', caseSensitive: false),
+    RegExp(r'youtube\.com/embed', caseSensitive: false),
+    RegExp(r'youtube\.com/results', caseSensitive: false),
+    RegExp(r'm\.youtube\.com/$', caseSensitive: false),
+    RegExp(r'instagram\.com/p/', caseSensitive: false),
+    RegExp(r'instagram\.com/reel/', caseSensitive: false),
+    RegExp(r'tiktok\.com/@', caseSensitive: false),
+    RegExp(r'\.woff2?(\?|$)', caseSensitive: false),
+    RegExp(r'\.png(\?|$)', caseSensitive: false),
+    RegExp(r'\.jpe?g(\?|$)', caseSensitive: false),
+    RegExp(r'\.svg(\?|$)', caseSensitive: false),
+    RegExp(r'\.ico(\?|$)', caseSensitive: false),
+    RegExp(r'googleapis\.com', caseSensitive: false),
+    RegExp(r'gstatic\.com', caseSensitive: false),
+    RegExp(r'google\.com/gen_204', caseSensitive: false),
+    RegExp(r'google\.com/complete/', caseSensitive: false),
+    RegExp(r'play\.google\.com', caseSensitive: false),
   ];
 
   static final _googlevideoPat = RegExp(
@@ -93,7 +120,9 @@ class MediaSniffer extends ChangeNotifier {
   bool isMediaUrl(String url) {
     if (_excludePatterns.any((p) => p.hasMatch(url))) return false;
     if (_googlevideoPat.hasMatch(url)) return true;
-    return _mediaExtensions.hasMatch(url);
+    if (_mediaExtensions.hasMatch(url)) return true;
+    if (_tsSegmentPattern.hasMatch(url) && url.contains('segment')) return true;
+    return false;
   }
 
   bool isMediaContentType(String? contentType) {
@@ -116,18 +145,29 @@ class MediaSniffer extends ChangeNotifier {
   }
 
   void addFromJsDetection(List<Map<String, dynamic>> videos, String pageUrl) {
+    var added = false;
     for (final v in videos) {
       final url = v['src'] as String? ?? '';
       if (url.isEmpty || _seenUrls.contains(url)) continue;
+      if (url == pageUrl) continue;
+
+      final type = v['type'] as String? ?? '';
+      if (type == 'embed') continue;
+
+      final isDirectMedia = isMediaUrl(url) || isMediaContentType(type);
+      final isGooglevideo = _googlevideoPat.hasMatch(url);
+      if (!isDirectMedia && !isGooglevideo) continue;
+
       _seenUrls.add(url);
       _detectedMedia.add(DetectedMedia(
         url: url,
         title: v['title'] as String?,
-        mimeType: v['type'] as String?,
+        mimeType: type.isNotEmpty ? type : null,
         sourceUrl: pageUrl,
       ));
+      added = true;
     }
-    if (videos.isNotEmpty) notifyListeners();
+    if (added) notifyListeners();
   }
 
   void clearForPage(String pageUrl) {

@@ -115,10 +115,16 @@ class BrowserScreenState extends State<BrowserScreen> {
     }
   }
 
-  void _showSniffedMedia() {
+  String _pageTitle = '';
+
+  Future<void> _showSniffedMedia() async {
     final media = _mediaSniffer.detectedMedia;
     if (media.isEmpty) return;
 
+    final title = await _webController?.getTitle();
+    _pageTitle = (title != null && title.isNotEmpty) ? title : Uri.tryParse(_currentUrl)?.host ?? _currentUrl;
+
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -129,7 +135,7 @@ class BrowserScreenState extends State<BrowserScreen> {
       builder: (_) => _SniffedMediaSheet(
         media: media,
         pageUrl: _currentUrl,
-        pageTitle: _urlController.text,
+        pageTitle: _pageTitle,
       ),
     );
   }
@@ -196,11 +202,7 @@ class BrowserScreenState extends State<BrowserScreen> {
                     onLoadResource: (controller, resource) {
                       final url = resource.url?.toString() ?? '';
                       if (url.isNotEmpty) {
-                        _mediaSniffer.onResourceLoaded(
-                          url,
-                          _currentUrl,
-                          contentType: resource.initiatorType,
-                        );
+                        _mediaSniffer.onResourceLoaded(url, _currentUrl);
                       }
                     },
                     shouldOverrideUrlLoading: (controller, navigationAction) async {

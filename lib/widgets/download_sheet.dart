@@ -7,10 +7,12 @@ import '../theme/app_theme.dart';
 
 class DownloadSheet extends StatelessWidget {
   final VideoInfo video;
+  final DownloadService downloadService;
 
-  const DownloadSheet({super.key, required this.video});
+  const DownloadSheet({super.key, required this.video, required this.downloadService});
 
   static void show(BuildContext context, VideoInfo video) {
+    final ds = context.read<DownloadService>();
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -18,7 +20,7 @@ class DownloadSheet extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       isScrollControlled: true,
-      builder: (_) => DownloadSheet(video: video),
+      builder: (_) => DownloadSheet(video: video, downloadService: ds),
     );
   }
 
@@ -115,7 +117,7 @@ class DownloadSheet extends StatelessWidget {
               itemCount: video.streams.length,
               itemBuilder: (context, index) {
                 final stream = video.streams[index];
-                return _StreamTile(video: video, stream: stream);
+                return _StreamTile(video: video, stream: stream, downloadService: downloadService);
               },
             ),
           ),
@@ -128,8 +130,9 @@ class DownloadSheet extends StatelessWidget {
 class _StreamTile extends StatelessWidget {
   final VideoInfo video;
   final VideoStream stream;
+  final DownloadService downloadService;
 
-  const _StreamTile({required this.video, required this.stream});
+  const _StreamTile({required this.video, required this.stream, required this.downloadService});
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +197,7 @@ class _StreamTile extends StatelessWidget {
         trailing: IconButton(
           icon: const Icon(Icons.download_rounded, color: AppColors.primary),
           onPressed: () {
-            context.read<DownloadService>().startDownload(video, stream);
+            downloadService.startDownload(video, stream);
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

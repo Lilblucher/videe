@@ -10,7 +10,7 @@ import 'screens/browser/browser_screen.dart';
 import 'screens/downloads/downloads_screen.dart';
 import 'screens/library/library_screen.dart';
 import 'screens/settings/settings_screen.dart';
-import 'widgets/download_sheet.dart';
+import 'widgets/download_sheet.dart' show DownloadSheet;
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -117,15 +117,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
     final result = await _extractionService.extractVideo(url);
     if (result != null && result.streams.isNotEmpty && mounted) {
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => DownloadSheet(
-          videoInfo: result,
-          storage: widget.storage,
-        ),
-      );
+      DownloadSheet.show(context, result);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not extract video from this URL')),

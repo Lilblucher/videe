@@ -72,7 +72,7 @@ class GenericExtractor extends VideoExtractor {
       RegExp(r'"hls_url"\s*:\s*"(https?://[^"]+\.m3u8[^"]*)"'),
       RegExp(r'"dash_url"\s*:\s*"(https?://[^"]+\.mpd[^"]*)"'),
       RegExp(r'<meta[^>]+property="og:video(?::secure_url)?"[^>]+content="(https?://[^"]+)"'),
-      RegExp(r'googlevideo\.com/videoplayback[^"\'>\s]+', caseSensitive: false),
+      RegExp('googlevideo\\.com/videoplayback[^\\"\\\'\\>\\s]+', caseSensitive: false),
     ];
 
     final excludePatterns = [
@@ -88,7 +88,7 @@ class GenericExtractor extends VideoExtractor {
       for (final m in p.allMatches(html)) {
         final u = m.group(1) ?? m.group(0);
         if (u != null && !excludePatterns.any((ep) => ep.hasMatch(u))) {
-          urls.add(u.replaceAll(r'\/', '/').replaceAll(r'&amp;', '&'));
+          urls.add(u.replaceAll(r'\/', '/').replaceAll('&amp;', '&'));
         }
       }
     }

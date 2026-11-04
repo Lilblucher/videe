@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId = "com.videe.videe"
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -25,9 +25,11 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
+            isShrinkResources = false
         }
         release {
             isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = signingConfigs.getByName("debug")
         }
     }

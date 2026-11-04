@@ -12,7 +12,11 @@ import 'storage_service.dart';
 
 class DownloadService extends ChangeNotifier {
   final StorageService _storage;
-  final Dio _dio = Dio();
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(minutes: 10),
+    sendTimeout: const Duration(seconds: 30),
+  ));
   final Map<String, CancelToken> _cancelTokens = {};
   List<DownloadItem> _downloads = [];
   static const _maxConcurrent = 3;
@@ -48,9 +52,9 @@ class DownloadService extends ChangeNotifier {
     final ext = stream.isAudioOnly ? 'mp3' : stream.format;
     final sanitized = video.title
         .replaceAll(RegExp(r'[^\w\s\-]'), '')
-        .replaceAll(RegExp(r'\s+'), '_')
-        .substring(0, video.title.length.clamp(0, 80));
-    final fileName = '${sanitized}_${stream.quality}.$ext';
+        .replaceAll(RegExp(r'\s+'), '_');
+    final truncated = sanitized.substring(0, sanitized.length.clamp(0, 80));
+    final fileName = '${truncated}_${stream.quality}.$ext';
     final savePath = p.join(dir, fileName);
 
     final item = DownloadItem(
@@ -98,7 +102,7 @@ class DownloadService extends ChangeNotifier {
     _cancelTokens[item.id] = cancelToken;
 
     try {
-      await _dio.download(
+      final response = await _dio.download(
         item.streamUrl,
         item.savePath,
         cancelToken: cancelToken,
@@ -106,7 +110,10 @@ class DownloadService extends ChangeNotifier {
           headers: {
             'User-Agent':
                 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36',
+            'Accept': '*/*',
           },
+          followRedirects: true,
+          maxRedirects: 5,
         ),
         onReceiveProgress: (received, total) {
           item.downloadedBytes = received;
@@ -116,6 +123,20 @@ class DownloadService extends ChangeNotifier {
           notifyListeners();
         },
       );
+
+      final file = File(item.savePath);
+      final fileSize = await file.exists() ? await file.length() : 0;
+      final contentType = response.headers.value('content-type') ?? '';
+
+      if (fileSize < 1024 || contentType.contains('text/html')) {
+        item.status = DownloadStatus.failed;
+        item.errorMessage = 'Invalid video file (size: $fileSize, type: $contentType)';
+        await _storage.saveDownload(item);
+        try { await file.delete(); } catch (_) {}
+        notifyListeners();
+        _processQueue();
+        return;
+      }
 
       item.status = DownloadStatus.completed;
       item.completedAt = DateTime.now();
