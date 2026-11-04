@@ -21,8 +21,8 @@ dependencies:
   # State management
   provider: ^6.1.2
 
-  # Browser
-  webview_flutter: ^4.10.0
+  # Browser (InAppWebView for request interception / media sniffing)
+  flutter_inappwebview: ^6.1.5
 
   # Video extraction (YouTube - pure Dart)
   youtube_explode_dart: ^2.3.5

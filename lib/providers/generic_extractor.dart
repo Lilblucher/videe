@@ -59,20 +59,36 @@ class GenericExtractor extends VideoExtractor {
     final urls = <String>{};
 
     final patterns = [
-      RegExp(r'"(https?://[^"]+\.(?:mp4|webm|m3u8)[^"]*)"'),
-      RegExp(r"'(https?://[^']+\.(?:mp4|webm|m3u8)[^']*)'"),
-      RegExp(r'src="(https?://[^"]+\.(?:mp4|webm|m3u8)[^"]*)"'),
+      RegExp(r'"(https?://[^"]+\.(?:mp4|webm|m3u8|flv|ts|mkv|mov)[^"]*)"'),
+      RegExp(r"'(https?://[^']+\.(?:mp4|webm|m3u8|flv|ts|mkv|mov)[^']*)'"),
+      RegExp(r'src="(https?://[^"]+\.(?:mp4|webm|m3u8|flv|ts|mkv|mov)[^"]*)"'),
       RegExp(r'"contentUrl"\s*:\s*"(https?://[^"]+)"'),
       RegExp(r'"url"\s*:\s*"(https?://[^"]+\.(?:mp4|webm|m3u8)[^"]*)"'),
       RegExp(r'<source[^>]+src="(https?://[^"]+)"'),
       RegExp(r'file\s*:\s*"(https?://[^"]+\.(?:mp4|webm|m3u8)[^"]*)"'),
+      RegExp(r'"video_url"\s*:\s*"(https?://[^"]+)"'),
+      RegExp(r'"playback_url"\s*:\s*"(https?://[^"]+)"'),
+      RegExp(r'"stream_url"\s*:\s*"(https?://[^"]+)"'),
+      RegExp(r'"hls_url"\s*:\s*"(https?://[^"]+\.m3u8[^"]*)"'),
+      RegExp(r'"dash_url"\s*:\s*"(https?://[^"]+\.mpd[^"]*)"'),
+      RegExp(r'<meta[^>]+property="og:video(?::secure_url)?"[^>]+content="(https?://[^"]+)"'),
+      RegExp(r'googlevideo\.com/videoplayback[^"\'>\s]+', caseSensitive: false),
+    ];
+
+    final excludePatterns = [
+      RegExp(r'analytics', caseSensitive: false),
+      RegExp(r'tracking', caseSensitive: false),
+      RegExp(r'beacon', caseSensitive: false),
+      RegExp(r'pixel', caseSensitive: false),
+      RegExp(r'googleads', caseSensitive: false),
+      RegExp(r'doubleclick', caseSensitive: false),
     ];
 
     for (final p in patterns) {
       for (final m in p.allMatches(html)) {
-        final u = m.group(1);
-        if (u != null && !u.contains('analytics') && !u.contains('tracking')) {
-          urls.add(u);
+        final u = m.group(1) ?? m.group(0);
+        if (u != null && !excludePatterns.any((ep) => ep.hasMatch(u))) {
+          urls.add(u.replaceAll(r'\/', '/').replaceAll(r'&amp;', '&'));
         }
       }
     }

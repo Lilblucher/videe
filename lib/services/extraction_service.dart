@@ -11,6 +11,9 @@ class ExtractionService {
     TikTokExtractor(),
     TwitterExtractor(),
     FacebookExtractor(),
+    RedditExtractor(),
+    VimeoExtractor(),
+    DailymotionExtractor(),
     GenericExtractor(),
   ];
 
