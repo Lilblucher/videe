@@ -207,6 +207,18 @@ class BrowserScreenState extends State<BrowserScreen> {
                     },
                     shouldOverrideUrlLoading: (controller, navigationAction) async {
                       final url = navigationAction.request.url?.toString() ?? '';
+
+                      // App-link / deep-link schemes (intent://, tiktok://,
+                      // fb://, instagram://, market://, etc.) aren't real
+                      // pages - loading them directly produces
+                      // ERR_UNKNOWN_URL_SCHEME. Cancel instead of trying to
+                      // launch an external app, so the browser just stays
+                      // on the current page.
+                      final scheme = Uri.tryParse(url)?.scheme ?? '';
+                      if (scheme.isNotEmpty && scheme != 'http' && scheme != 'https') {
+                        return NavigationActionPolicy.CANCEL;
+                      }
+
                       if (_mediaSniffer.isMediaUrl(url) &&
                           !url.contains('youtube.com') &&
                           !url.contains('googlevideo.com')) {

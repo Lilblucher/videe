@@ -130,7 +130,7 @@ class DownloadService extends ChangeNotifier {
 
       if (fileSize < 1024 || contentType.contains('text/html')) {
         item.status = DownloadStatus.failed;
-        item.errorMessage = 'Invalid video file (size: $fileSize, type: $contentType)';
+        item.errorMessage = 'Invalid video file received';
         await _storage.saveDownload(item);
         try { await file.delete(); } catch (_) {}
         notifyListeners();
@@ -150,13 +150,20 @@ class DownloadService extends ChangeNotifier {
         return;
       }
       item.status = DownloadStatus.failed;
-      item.errorMessage = e.message ?? 'Download failed';
+      item.errorMessage = switch (e.type) {
+        DioExceptionType.connectionTimeout => 'Connection timed out',
+        DioExceptionType.receiveTimeout => 'Download timed out (connection too slow)',
+        DioExceptionType.sendTimeout => 'Connection timed out',
+        DioExceptionType.connectionError => 'Could not connect',
+        DioExceptionType.badResponse => 'Server rejected the request (${e.response?.statusCode ?? 'unknown'})',
+        _ => 'Download failed',
+      };
       await _storage.saveDownload(item);
       notifyListeners();
       _processQueue();
     } catch (e) {
       item.status = DownloadStatus.failed;
-      item.errorMessage = e.toString();
+      item.errorMessage = 'Download failed';
       await _storage.saveDownload(item);
       notifyListeners();
       _processQueue();

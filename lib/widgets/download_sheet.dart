@@ -4,7 +4,12 @@ import 'package:provider/provider.dart';
 import '../models/video_info.dart';
 import '../services/download_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/underline_tabs.dart';
 
+/// Format picker. Per the v2 design spec this is a full page, not a sheet:
+/// thumb + title, underline tabs splitting streams into Video/Audio, a
+/// ledger of format rows (tap to select), and a single accent CTA at the
+/// bottom that downloads the selected stream.
 class DownloadSheet extends StatelessWidget {
   final VideoInfo video;
   final DownloadService downloadService;
@@ -13,202 +18,245 @@ class DownloadSheet extends StatelessWidget {
 
   static void show(BuildContext context, VideoInfo video) {
     final ds = context.read<DownloadService>();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DownloadSheet(video: video, downloadService: ds),
       ),
-      isScrollControlled: true,
-      builder: (_) => DownloadSheet(video: video, downloadService: ds),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.65,
-      minChildSize: 0.4,
-      maxChildSize: 0.85,
-      expand: false,
-      builder: (_, controller) => Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.textMuted,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                if (video.thumbnailUrl != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImage(
-                      imageUrl: video.thumbnailUrl!,
-                      width: 80,
-                      height: 50,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        video.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (video.author != null)
-                        Text(
-                          video.author!,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(color: AppColors.divider, height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.download, color: AppColors.primary, size: 20),
-                const SizedBox(width: 8),
-                const Text(
-                  'Select Quality',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${video.streams.length} options',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              controller: controller,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: video.streams.length,
-              itemBuilder: (context, index) {
-                final stream = video.streams[index];
-                return _StreamTile(video: video, stream: stream, downloadService: downloadService);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+    return _FormatScreen(video: video, downloadService: downloadService);
   }
 }
 
-class _StreamTile extends StatelessWidget {
+class _FormatScreen extends StatefulWidget {
   final VideoInfo video;
-  final VideoStream stream;
   final DownloadService downloadService;
 
-  const _StreamTile({required this.video, required this.stream, required this.downloadService});
+  const _FormatScreen({required this.video, required this.downloadService});
+
+  @override
+  State<_FormatScreen> createState() => _FormatScreenState();
+}
+
+class _FormatScreenState extends State<_FormatScreen> {
+  int _tab = 0;
+  int? _selected;
+
+  List<VideoStream> get _videoStreams =>
+      widget.video.streams.where((s) => !s.isAudioOnly).toList();
+  List<VideoStream> get _audioStreams =>
+      widget.video.streams.where((s) => s.isAudioOnly).toList();
+
+  List<VideoStream> get _currentStreams =>
+      _tab == 0 ? _videoStreams : _audioStreams;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_videoStreams.isEmpty && _audioStreams.isNotEmpty) _tab = 1;
+  }
 
   @override
   Widget build(BuildContext context) {
-    IconData icon;
-    Color iconColor;
-    if (stream.isAudioOnly) {
-      icon = Icons.audiotrack;
-      iconColor = AppColors.warning;
-    } else if (stream.isVideoOnly) {
-      icon = Icons.videocam;
-      iconColor = AppColors.secondary;
-    } else {
-      icon = Icons.play_circle_filled;
-      iconColor = AppColors.primary;
-    }
+    final video = widget.video;
+    final streams = _currentStreams;
+    final selectedStream =
+        (_selected != null && _selected! < streams.length) ? streams[_selected!] : null;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: iconColor),
-        title: Text(
-          stream.label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
-        ),
-        subtitle: Row(
-          children: [
-            if (stream.sizeLabel.isNotEmpty)
-              Text(
-                stream.sizeLabel,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
+    return Scaffold(
+      backgroundColor: AppColors.bg,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.arrow_back_ios_new, size: 14, color: AppColors.textMuted),
+                    const SizedBox(width: 6),
+                    Text('Back', style: AppText.sans(size: 13, weight: FontWeight.w500, color: AppColors.textMuted)),
+                  ],
                 ),
               ),
-            if (stream.codec != null) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(4),
+              const SizedBox(height: 18),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.control),
+                child: Stack(
+                  children: [
+                    SizedBox(
+                      height: 176,
+                      width: double.infinity,
+                      child: video.thumbnailUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: video.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Container(color: AppColors.surface),
+                            )
+                          : Container(color: AppColors.surface),
+                    ),
+                    if (video.durationLabel.isNotEmpty)
+                      Positioned(
+                        left: 8,
+                        bottom: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.bg,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: Text(
+                            video.durationLabel,
+                            style: AppText.mono(size: 11, weight: FontWeight.w500, color: AppColors.textTitle),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                child: Text(
-                  stream.codec!,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 10,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                video.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.sans(size: 20, weight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.02, height: 1.2),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                video.source,
+                style: AppText.mono(size: 11.5, color: AppColors.textDim),
+              ),
+              const SizedBox(height: 22),
+              if (_audioStreams.isNotEmpty && _videoStreams.isNotEmpty)
+                UnderlineTabs(
+                  labels: const ['Video', 'Audio'],
+                  activeIndex: _tab,
+                  onChanged: (i) => setState(() {
+                    _tab = i;
+                    _selected = null;
+                  }),
+                ),
+              Expanded(
+                child: streams.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No streams in this category',
+                          style: AppText.mono(size: 12, color: AppColors.textDim),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(top: 8),
+                        itemCount: streams.length,
+                        itemBuilder: (context, i) {
+                          final s = streams[i];
+                          final selected = i == _selected;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selected = i),
+                            child: Container(
+                              height: 46,
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              margin: const EdgeInsets.only(bottom: 0),
+                              decoration: BoxDecoration(
+                                color: selected ? AppColors.accent : Colors.transparent,
+                                border: const Border(bottom: BorderSide(color: AppColors.hairline)),
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 62,
+                                    child: Text(
+                                      s.quality,
+                                      style: AppText.sans(
+                                        size: 15,
+                                        weight: FontWeight.w700,
+                                        color: selected ? AppColors.onAccent : AppColors.textTitle,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      s.isAudioOnly
+                                          ? s.format.toUpperCase()
+                                          : '${s.format.toUpperCase()}${s.codec != null ? ' · ${s.codec}' : ''}',
+                                      style: AppText.mono(
+                                        size: 11.5,
+                                        color: selected ? AppColors.onAccent : AppColors.textDim,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    s.sizeLabel.isNotEmpty ? s.sizeLabel : '—',
+                                    style: AppText.mono(
+                                      size: 12,
+                                      weight: FontWeight.w500,
+                                      color: selected ? AppColors.onAccent : AppColors.textTitle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              Text(
+                'Saves to /Downloads/Videe',
+                style: AppText.mono(size: 11.5, color: AppColors.textDim),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: GestureDetector(
+                  onTap: selectedStream == null
+                      ? null
+                      : () {
+                          widget.downloadService.startDownload(video, selectedStream);
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Downloading: ${video.title}',
+                                style: AppText.sans(size: 13, color: AppColors.text),
+                              ),
+                              backgroundColor: AppColors.surface,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppRadius.control),
+                                side: const BorderSide(color: AppColors.border),
+                              ),
+                            ),
+                          );
+                        },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: selectedStream == null ? AppColors.surface : AppColors.accent,
+                      borderRadius: BorderRadius.circular(AppRadius.control),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      selectedStream == null
+                          ? 'Select a quality'
+                          : 'Download${selectedStream.sizeLabel.isNotEmpty ? ' ${selectedStream.sizeLabel}' : ''}',
+                      style: AppText.sans(
+                        size: 16,
+                        weight: FontWeight.w700,
+                        color: selectedStream == null ? AppColors.textDim : AppColors.onAccent,
+                      ),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
             ],
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.download_rounded, color: AppColors.primary),
-          onPressed: () {
-            downloadService.startDownload(video, stream);
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Downloading: ${video.title}'),
-                backgroundColor: AppColors.surface,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            );
-          },
+          ),
         ),
       ),
     );

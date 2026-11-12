@@ -2,11 +2,17 @@ import '../models/video_info.dart';
 import '../providers/extractor_base.dart';
 import '../providers/youtube_extractor.dart';
 import '../providers/social_extractor.dart';
+import '../providers/relay_extractor.dart';
 import '../providers/generic_extractor.dart';
 
 class ExtractionService {
   final List<VideoExtractor> _extractors = [
     YouTubeExtractor(),
+    // Relay (dl_service) goes first for TikTok/Instagram: it's the
+    // server-side yt-dlp extraction that survives CDN blocking, the
+    // client-side scrapers below are the fallback when the relay is
+    // unreachable or returns nothing.
+    RelayExtractor(),
     InstagramExtractor(),
     TikTokExtractor(),
     TwitterExtractor(),
@@ -24,11 +30,36 @@ class ExtractionService {
       if (extractor.canHandle(url)) {
         final result = await extractor.extract(url);
         if (result != null && result.streams.isNotEmpty) {
-          return result;
+          final direct = _directlyDownloadable(result);
+          if (direct != null) return direct;
         }
       }
     }
     return null;
+  }
+
+  // HLS (.m3u8) and DASH streams are segmented manifests, not single files -
+  // a plain GET download only saves the playlist text, not playable video.
+  // The download pipeline has no HLS muxer, so only progressive/direct
+  // streams can be offered.
+  VideoInfo? _directlyDownloadable(VideoInfo video) {
+    final direct = video.streams
+        .where((s) => s.format != 'hls' && s.format != 'dash')
+        .toList();
+    if (direct.isEmpty) return null;
+    return VideoInfo(
+      id: video.id,
+      title: video.title,
+      url: video.url,
+      thumbnailUrl: video.thumbnailUrl,
+      author: video.author,
+      duration: video.duration,
+      source: video.source,
+      streams: direct,
+      description: video.description,
+      uploadDate: video.uploadDate,
+      viewCount: video.viewCount,
+    );
   }
 
   String getSourceName(String url) {

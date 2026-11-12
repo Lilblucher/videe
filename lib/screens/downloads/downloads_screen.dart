@@ -1,35 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/download_item.dart';
 import '../../services/download_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/hex_progress_ring.dart';
+import '../../widgets/underline_tabs.dart';
 
-class DownloadsScreen extends StatelessWidget {
+class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
+
+  @override
+  State<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+class _DownloadsScreenState extends State<DownloadsScreen> {
+  int _tab = 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Consumer<DownloadService>(
           builder: (_, service, __) {
-            final downloads = service.downloads;
+            final active = service.downloads
+                .where((d) => d.status == DownloadStatus.downloading || d.status == DownloadStatus.paused)
+                .toList();
+            final queued = service.downloads.where((d) => d.status == DownloadStatus.queued).toList();
+            final done = service.downloads
+                .where((d) =>
+                    d.status == DownloadStatus.completed ||
+                    d.status == DownloadStatus.failed ||
+                    d.status == DownloadStatus.cancelled)
+                .toList();
 
-            return CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(child: _buildHeader(context, service)),
-                if (downloads.isEmpty)
-                  const SliverFillRemaining(child: _EmptyState())
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverList.builder(
-                      itemCount: downloads.length,
-                      itemBuilder: (_, i) =>
-                          _DownloadTile(item: downloads[i]),
-                    ),
+            final lists = [active, queued, done];
+            final current = lists[_tab];
+            final hero = active.isNotEmpty ? active.first : null;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hero != null) _buildHero(hero),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(20, hero != null ? 24 : 20, 20, 0),
+                  child: UnderlineTabs(
+                    labels: [
+                      'Active ${active.length}',
+                      'Queued ${queued.length}',
+                      'Done',
+                    ],
+                    activeIndex: _tab,
+                    onChanged: (i) => setState(() => _tab = i),
                   ),
+                ),
+                Expanded(
+                  child: current.isEmpty
+                      ? _EmptyState(tab: _tab)
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                          itemCount: current.length,
+                          itemBuilder: (_, i) => _DownloadRow(
+                            index: i + 1,
+                            item: current[i],
+                          ),
+                        ),
+                ),
               ],
             );
           },
@@ -38,79 +74,44 @@ class DownloadsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, DownloadService service) {
-    final active = service.activeDownloads.length;
-    final completed = service.completedDownloads.length;
+  Widget _buildHero(DownloadItem item) {
+    final speedLine = item.status == DownloadStatus.paused
+        ? 'Paused'
+        : item.sizeLabel;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                'Downloads',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              if (completed > 0)
-                TextButton(
-                  onPressed: () => service.clearCompleted(),
-                  child: const Text('Clear completed',
-                      style: TextStyle(color: AppColors.accent, fontSize: 12)),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _Chip(
-                icon: Icons.downloading,
-                label: '$active active',
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 8),
-              _Chip(
-                icon: Icons.check_circle,
-                label: '$completed done',
-                color: AppColors.success,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _Chip({required this.icon, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+          HexProgressRing(
+            progress: item.progress,
+            size: 104,
+            glow: item.status != DownloadStatus.paused,
+            progressColor: item.status == DownloadStatus.paused ? AppColors.textDim : AppColors.accent,
+            center: Text(
+              item.progressLabel,
+              style: AppText.mono(size: 24, weight: FontWeight.w500, color: AppColors.text, letterSpacing: -0.04 * 24),
+            ),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.sans(size: 17, weight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.01, height: 1.2),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  speedLine,
+                  style: AppText.mono(size: 12, color: AppColors.accentText),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -118,215 +119,168 @@ class _Chip extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final int tab;
+
+  const _EmptyState({required this.tab});
 
   @override
   Widget build(BuildContext context) {
+    final label = switch (tab) {
+      0 => 'No active downloads',
+      1 => 'Nothing queued',
+      _ => 'No downloads yet',
+    };
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.download_for_offline_outlined,
-              size: 64, color: AppColors.textMuted.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
-          const Text(
-            'No downloads yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Paste a URL or browse to start downloading',
-            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-          ),
-        ],
+      child: Text(
+        label,
+        style: AppText.mono(size: 12, color: AppColors.textDim),
       ),
     );
   }
 }
 
-class _DownloadTile extends StatelessWidget {
+class _DownloadRow extends StatelessWidget {
+  final int index;
   final DownloadItem item;
 
-  const _DownloadTile({required this.item});
+  const _DownloadRow({required this.index, required this.item});
 
   @override
   Widget build(BuildContext context) {
     final service = context.read<DownloadService>();
+    final isPaused = item.status == DownloadStatus.paused;
+    final barColor = isPaused ? const Color(0xFF3A3E45) : AppColors.accent;
+    final pctColor = item.status == DownloadStatus.failed ? AppColors.error : AppColors.accentText;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
+      padding: const EdgeInsets.only(top: 14),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.hairline)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 64,
-                height: 40,
-                child: item.thumbnailUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: item.thumbnailUrl!,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Container(
-                          color: AppColors.surfaceLight,
-                          child: const Icon(Icons.video_library,
-                              size: 20, color: AppColors.textMuted),
-                        ),
-                      )
-                    : Container(
-                        color: AppColors.surfaceLight,
-                        child: const Icon(Icons.video_library,
-                            size: 20, color: AppColors.textMuted),
-                      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                index.toString().padLeft(2, '0'),
+                style: AppText.mono(size: 11, color: AppColors.textFaint),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.sans(size: 14, weight: FontWeight.w500, color: AppColors.textTitle),
+                ),
+              ),
+              Text(
+                _percentLabel(),
+                style: AppText.mono(size: 12, weight: FontWeight.w500, color: pctColor),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 21, top: 6, bottom: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _metaLabel(),
+                    style: AppText.mono(size: 11, color: AppColors.textDim),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => _onAction(service),
+                  child: Text(
+                    _actionLabel(),
+                    style: AppText.mono(size: 11, color: AppColors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (item.status == DownloadStatus.downloading || item.status == DownloadStatus.paused)
+            Padding(
+              padding: const EdgeInsets.only(left: 21, bottom: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(1),
+                child: LinearProgressIndicator(
+                  value: item.progress,
+                  minHeight: 2,
+                  backgroundColor: AppColors.hairline,
+                  valueColor: AlwaysStoppedAnimation(barColor),
+                ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      _statusIcon(),
-                      const SizedBox(width: 4),
-                      Text(
-                        _statusText(),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _statusColor(),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      if (item.status == DownloadStatus.downloading) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          item.sizeLabel,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (item.status == DownloadStatus.downloading) ...[
-                    const SizedBox(height: 6),
-                    LinearProgressIndicator(
-                      value: item.progress,
-                      backgroundColor: AppColors.surfaceLight,
-                      valueColor:
-                          const AlwaysStoppedAnimation(AppColors.primary),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            _actionButton(service),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _statusIcon() {
+  String _percentLabel() {
     switch (item.status) {
-      case DownloadStatus.queued:
-        return const Icon(Icons.hourglass_top,
-            size: 12, color: AppColors.warning);
       case DownloadStatus.downloading:
-        return const Icon(Icons.downloading,
-            size: 12, color: AppColors.primary);
       case DownloadStatus.paused:
-        return const Icon(Icons.pause_circle,
-            size: 12, color: AppColors.warning);
-      case DownloadStatus.completed:
-        return const Icon(Icons.check_circle,
-            size: 12, color: AppColors.success);
-      case DownloadStatus.failed:
-        return const Icon(Icons.error, size: 12, color: AppColors.error);
-      case DownloadStatus.cancelled:
-        return const Icon(Icons.cancel, size: 12, color: AppColors.textMuted);
-    }
-  }
-
-  String _statusText() {
-    switch (item.status) {
-      case DownloadStatus.queued:
-        return 'Queued';
-      case DownloadStatus.downloading:
         return item.progressLabel;
-      case DownloadStatus.paused:
-        return 'Paused';
+      case DownloadStatus.queued:
+        return '—';
       case DownloadStatus.completed:
-        return 'Completed';
+        return item.sizeLabel.isNotEmpty ? item.sizeLabel : 'Done';
       case DownloadStatus.failed:
-        return item.errorMessage ?? 'Failed';
+        return 'Failed';
       case DownloadStatus.cancelled:
         return 'Cancelled';
     }
   }
 
-  Color _statusColor() {
+  String _metaLabel() {
     switch (item.status) {
-      case DownloadStatus.queued:
-      case DownloadStatus.paused:
-        return AppColors.warning;
       case DownloadStatus.downloading:
-        return AppColors.primary;
+        return item.sizeLabel;
+      case DownloadStatus.paused:
+        return 'Paused · ${item.sizeLabel}';
+      case DownloadStatus.queued:
+        return 'Queued';
       case DownloadStatus.completed:
-        return AppColors.success;
+        return 'Done · ${item.sizeLabel}';
       case DownloadStatus.failed:
-        return AppColors.error;
+        return item.errorMessage ?? 'Download failed';
       case DownloadStatus.cancelled:
-        return AppColors.textMuted;
+        return 'Cancelled';
     }
   }
 
-  Widget _actionButton(DownloadService service) {
+  String _actionLabel() {
     switch (item.status) {
       case DownloadStatus.downloading:
-        return IconButton(
-          icon: const Icon(Icons.pause, color: AppColors.warning, size: 20),
-          onPressed: () => service.pauseDownload(item.id),
-        );
+        return 'Pause';
       case DownloadStatus.paused:
       case DownloadStatus.failed:
-        return IconButton(
-          icon: const Icon(Icons.play_arrow,
-              color: AppColors.primary, size: 20),
-          onPressed: () => service.resumeDownload(item.id),
-        );
+        return 'Resume';
       case DownloadStatus.queued:
-        return IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textMuted, size: 20),
-          onPressed: () => service.cancelDownload(item.id),
-        );
+        return 'Cancel';
       case DownloadStatus.completed:
       case DownloadStatus.cancelled:
-        return IconButton(
-          icon: const Icon(Icons.delete_outline,
-              color: AppColors.textMuted, size: 20),
-          onPressed: () => service.removeDownload(item.id),
-        );
+        return 'Remove';
+    }
+  }
+
+  void _onAction(DownloadService service) {
+    switch (item.status) {
+      case DownloadStatus.downloading:
+        service.pauseDownload(item.id);
+      case DownloadStatus.paused:
+      case DownloadStatus.failed:
+        service.resumeDownload(item.id);
+      case DownloadStatus.queued:
+        service.cancelDownload(item.id);
+      case DownloadStatus.completed:
+      case DownloadStatus.cancelled:
+        service.removeDownload(item.id);
     }
   }
 }

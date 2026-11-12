@@ -4,6 +4,7 @@ import '../../services/extraction_service.dart';
 import '../../services/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/download_sheet.dart';
+import '../../widgets/hex_mark.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int) onNavigate;
@@ -25,15 +26,15 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isExtracting = false;
   String? _error;
 
-  final _quickSites = [
-    _SiteShortcut('YouTube', 'https://m.youtube.com', Icons.play_circle, Color(0xFFFF0000)),
-    _SiteShortcut('Instagram', 'https://www.instagram.com', Icons.camera_alt, Color(0xFFE4405F)),
-    _SiteShortcut('TikTok', 'https://www.tiktok.com', Icons.music_note, Color(0xFF000000)),
-    _SiteShortcut('Twitter', 'https://x.com', Icons.alternate_email, Color(0xFF1DA1F2)),
-    _SiteShortcut('Facebook', 'https://m.facebook.com', Icons.facebook, Color(0xFF1877F2)),
-    _SiteShortcut('Reddit', 'https://www.reddit.com', Icons.reddit, Color(0xFFFF4500)),
-    _SiteShortcut('Vimeo', 'https://vimeo.com', Icons.video_library, Color(0xFF1AB7EA)),
-    _SiteShortcut('Dailymotion', 'https://www.dailymotion.com', Icons.ondemand_video, Color(0xFF0066DC)),
+  static const _quickSites = [
+    _SiteShortcut('YouTube', 'https://m.youtube.com'),
+    _SiteShortcut('Instagram', 'https://www.instagram.com'),
+    _SiteShortcut('TikTok', 'https://www.tiktok.com'),
+    _SiteShortcut('Twitter', 'https://x.com'),
+    _SiteShortcut('Facebook', 'https://m.facebook.com'),
+    _SiteShortcut('Reddit', 'https://www.reddit.com'),
+    _SiteShortcut('Vimeo', 'https://vimeo.com'),
+    _SiteShortcut('Dailymotion', 'https://www.dailymotion.com'),
   ];
 
   Future<void> _extractAndDownload() async {
@@ -62,6 +63,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _clear() {
+    setState(() {
+      _urlController.clear();
+      _error = null;
+    });
+  }
+
   @override
   void dispose() {
     _urlController.dispose();
@@ -71,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -78,7 +87,8 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(child: _buildUrlInput()),
             SliverToBoxAdapter(child: _buildQuickSites()),
             SliverToBoxAdapter(child: _buildActiveDownloads()),
-            SliverToBoxAdapter(child: _buildStats()),
+            SliverToBoxAdapter(child: _buildRecent()),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
       ),
@@ -87,107 +97,121 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.primary, AppColors.secondary],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.play_arrow_rounded,
-                color: Colors.white, size: 28),
-          ),
-          const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Videe',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              Text(
-                'Download anything. No ads.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: const Align(
+        alignment: Alignment.centerLeft,
+        child: HexMark(size: 30),
       ),
     );
   }
 
   Widget _buildUrlInput() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.divider),
-            ),
-            child: Row(
+          RichText(
+            text: TextSpan(
+              style: AppText.sans(
+                size: 40,
+                weight: FontWeight.w700,
+                color: AppColors.text,
+                letterSpacing: -0.035 * 40,
+                height: 1.02,
+              ),
               children: [
-                const SizedBox(width: 16),
-                const Icon(Icons.link, color: AppColors.textMuted, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _urlController,
-                    decoration: const InputDecoration(
-                      hintText: 'Paste video URL here...',
-                      border: InputBorder.none,
-                      filled: false,
-                      contentPadding: EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    style: const TextStyle(fontSize: 14),
-                    onSubmitted: (_) => _extractAndDownload(),
+                const TextSpan(text: 'Paste a link.\n'),
+                TextSpan(
+                  text: 'Keep the file.',
+                  style: AppText.sans(
+                    size: 40,
+                    weight: FontWeight.w700,
+                    color: AppColors.textDim,
+                    letterSpacing: -0.035 * 40,
+                    height: 1.02,
                   ),
                 ),
-                if (_isExtracting)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  )
-                else
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward_rounded,
-                        color: AppColors.primary),
-                    onPressed: _extractAndDownload,
-                  ),
               ],
             ),
           ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8, left: 4),
-              child: Text(
-                _error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
-              ),
+          const SizedBox(height: 28),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.accent),
+              borderRadius: BorderRadius.circular(AppRadius.control),
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _urlController,
+                  style: AppText.mono(size: 13, color: AppColors.textMuted),
+                  cursorColor: AppColors.accent,
+                  decoration: InputDecoration(
+                    hintText: 'https://video.example/watch?v=…',
+                    hintStyle: AppText.mono(size: 13, color: AppColors.textFaint),
+                  ),
+                  onSubmitted: (_) => _extractAndDownload(),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: _isExtracting ? null : _extractAndDownload,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
+                          ),
+                          child: _isExtracting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.onAccent,
+                                  ),
+                                )
+                              : Text(
+                                  'Analyze link',
+                                  style: AppText.sans(size: 15, weight: FontWeight.w700, color: AppColors.onAccent),
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _clear,
+                      child: Container(
+                        height: 44,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(AppRadius.control),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Clear',
+                          style: AppText.sans(size: 14, weight: FontWeight.w500, color: AppColors.textMuted),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              style: AppText.mono(size: 11.5, color: AppColors.error),
+            ),
+          ],
         ],
       ),
     );
@@ -197,52 +221,35 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 36, 20, 10),
           child: Text(
             'BROWSE SITES',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textMuted,
-              letterSpacing: 1.5,
-            ),
+            style: AppText.mono(size: 11, weight: FontWeight.w500, letterSpacing: 1, color: AppColors.textFaint),
           ),
         ),
         SizedBox(
-          height: 100,
+          height: 72,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             scrollDirection: Axis.horizontal,
             itemCount: _quickSites.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
             itemBuilder: (_, i) {
               final site = _quickSites[i];
               return GestureDetector(
                 onTap: () => widget.onBrowse(site.url),
-                child: SizedBox(
-                  width: 72,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: site.color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(site.icon, color: site.color, size: 28),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        site.name,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  height: 40,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    site.name,
+                    style: AppText.sans(size: 13, weight: FontWeight.w500, color: AppColors.textMuted),
                   ),
                 ),
               );
@@ -263,167 +270,126 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 8),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'ACTIVE DOWNLOADS',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textMuted,
-                      letterSpacing: 1.5,
-                    ),
+                    style: AppText.mono(size: 11, weight: FontWeight.w500, letterSpacing: 1, color: AppColors.textFaint),
                   ),
                   const Spacer(),
                   GestureDetector(
                     onTap: () => widget.onNavigate(2),
-                    child: const Text(
+                    child: Text(
                       'See all',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppText.sans(size: 12, weight: FontWeight.w600, color: AppColors.accentText),
                     ),
                   ),
                 ],
               ),
             ),
-            ...active.take(3).map((item) => Container(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.downloading,
-                          color: AppColors.primary, size: 24),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: active.take(3).map((item) => Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.border),
+                        borderRadius: BorderRadius.circular(AppRadius.control),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.downloading, color: AppColors.accentText, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppText.sans(size: 13, weight: FontWeight.w500, color: AppColors.text),
+                                ),
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(1),
+                                  child: LinearProgressIndicator(
+                                    value: item.progress,
+                                    minHeight: 2,
+                                    backgroundColor: AppColors.hairline,
+                                    valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            item.progressLabel,
+                            style: AppText.mono(size: 12, color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                    )).toList(),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRecent() {
+    return Consumer<DownloadService>(
+      builder: (_, service, __) {
+        final recent = service.downloads.take(5).toList();
+        if (recent.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+              child: Text(
+                'RECENT',
+                style: AppText.mono(size: 11, weight: FontWeight.w500, letterSpacing: 1, color: AppColors.textFaint),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: recent.map((item) => Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: AppColors.hairline)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Expanded(
+                            child: Text(
                               item.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w500),
+                              style: AppText.sans(size: 14, weight: FontWeight.w500, color: AppColors.textTitle),
                             ),
-                            const SizedBox(height: 4),
-                            LinearProgressIndicator(
-                              value: item.progress,
-                              backgroundColor: AppColors.surfaceLight,
-                              valueColor: const AlwaysStoppedAnimation(
-                                  AppColors.primary),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '${item.format.toUpperCase()} ${item.sizeLabel}',
+                            style: AppText.mono(size: 11.5, color: AppColors.textDim),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        item.progressLabel,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStats() {
-    return Consumer<DownloadService>(
-      builder: (_, service, __) {
-        final completed = service.completedDownloads.length;
-        final active = service.activeDownloads.length;
-
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              _StatCard(
-                icon: Icons.check_circle,
-                label: 'Completed',
-                value: '$completed',
-                color: AppColors.success,
-              ),
-              const SizedBox(width: 12),
-              _StatCard(
-                icon: Icons.downloading,
-                label: 'Active',
-                value: '$active',
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 12),
-              _StatCard(
-                icon: Icons.block,
-                label: 'Ads',
-                value: '0',
-                color: AppColors.accent,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textMuted,
+                    )).toList(),
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -431,8 +397,6 @@ class _StatCard extends StatelessWidget {
 class _SiteShortcut {
   final String name;
   final String url;
-  final IconData icon;
-  final Color color;
 
-  const _SiteShortcut(this.name, this.url, this.icon, this.color);
+  const _SiteShortcut(this.name, this.url);
 }

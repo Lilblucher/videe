@@ -154,63 +154,69 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 top: MediaQuery.of(context).padding.top + 8,
                 left: 16,
                 right: 16,
-                child: Material(
-                  elevation: 8,
-                  borderRadius: BorderRadius.circular(12),
-                  color: AppColors.surface,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => _handleClipboardUrl(monitor.detectedUrl!),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.link, color: AppColors.primary, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'Video link detected',
-                                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                child: GestureDetector(
+                  onTap: () => _handleClipboardUrl(monitor.detectedUrl!),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(AppRadius.control),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.link, color: AppColors.accentText, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'LINK IN CLIPBOARD',
+                                style: AppText.mono(
+                                  size: 10.5,
+                                  weight: FontWeight.w500,
+                                  letterSpacing: 1,
+                                  color: AppColors.textFaint,
                                 ),
-                                Text(
-                                  monitor.detectedUrl!,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white.withValues(alpha: 0.6),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                monitor.detectedUrl!,
+                                style: AppText.mono(size: 12, color: AppColors.textMuted),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(AppRadius.control),
+                          ),
+                          child: Text(
+                            'Analyze',
+                            style: AppText.sans(
+                              size: 13,
+                              weight: FontWeight.w700,
+                              color: AppColors.onAccent,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Text(
-                              'Download',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => monitor.dismiss(),
+                          child: const Icon(
+                            Icons.close,
+                            size: 18,
+                            color: AppColors.textFaint,
                           ),
-                          const SizedBox(width: 4),
-                          GestureDetector(
-                            onTap: () => monitor.dismiss(),
-                            child: Icon(
-                              Icons.close,
-                              size: 18,
-                              color: Colors.white.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -219,36 +225,69 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(
-            top: BorderSide(color: AppColors.divider, width: 0.5),
-          ),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: _navigateTo,
-          items: [
-            _navItem(Icons.home_rounded, Icons.home_outlined, 'Home'),
-            _navItem(Icons.language, Icons.language_outlined, 'Browse'),
-            _navItem(
-                Icons.download_rounded, Icons.download_outlined, 'Downloads'),
-            _navItem(
-                Icons.video_library, Icons.video_library_outlined, 'Library'),
-            _navItem(Icons.settings, Icons.settings_outlined, 'Settings'),
-          ],
-        ),
+      bottomNavigationBar: _BottomNav(
+        currentIndex: _currentIndex,
+        onTap: _navigateTo,
       ),
     );
   }
+}
 
-  BottomNavigationBarItem _navItem(
-      IconData active, IconData inactive, String label) {
-    return BottomNavigationBarItem(
-      icon: Icon(inactive),
-      activeIcon: Icon(active),
-      label: label,
+class _BottomNav extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const _BottomNav({required this.currentIndex, required this.onTap});
+
+  static const _labels = ['HOME', 'BROWSE', 'DOWNLOADS', 'LIBRARY', 'SETTINGS'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: const BoxDecoration(
+        color: AppColors.bg,
+        border: Border(top: BorderSide(color: AppColors.hairline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            for (var i = 0; i < _labels.length; i++)
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onTap(i),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 2,
+                        width: 24,
+                        margin: const EdgeInsets.only(top: 0),
+                        color: i == currentIndex
+                            ? AppColors.accent
+                            : Colors.transparent,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _labels[i],
+                        style: AppText.mono(
+                          size: 11,
+                          weight: FontWeight.w500,
+                          letterSpacing: 0.8,
+                          color: i == currentIndex
+                              ? AppColors.text
+                              : AppColors.textFaint,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

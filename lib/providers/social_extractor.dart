@@ -205,39 +205,49 @@ class TikTokExtractor extends VideoExtractor {
 
       final body = response.body;
 
-      final patterns = [
-        RegExp(r'"playAddr"\s*:\s*"(https?://[^"]+)"'),
-        RegExp(r'"downloadAddr"\s*:\s*"(https?://[^"]+)"'),
-        RegExp(r'"playAddr"\s*:\s*\[\s*"(https?://[^"]+)"'),
-        RegExp(r'<meta\s+property="og:video(?::secure_url)?"\s+content="(https?://[^"]+)"'),
-        RegExp(r'"urls"\s*:\s*\[\s*"(https?://[^"]+)"'),
-      ];
+      // TikTok embeds the real video data as properly-escaped JSON (unicode
+      // slashes like /), so regex against the raw HTML can never match
+      // a literal "https://" - only a real JSON parse unescapes it correctly.
+      // The data lives in one of two script tags depending on TikTok's
+      // current page variant; try both.
+      for (final scriptId in ['api-data', '__UNIVERSAL_DATA_FOR_REHYDRATION__']) {
+        final scriptMatch = RegExp(
+          '<script\\s+id="$scriptId"[^>]*>(.*?)</script>',
+          dotAll: true,
+        ).firstMatch(body);
+        if (scriptMatch == null) continue;
 
-      for (final p in patterns) {
-        final match = p.firstMatch(body);
-        if (match != null) {
-          return match
-              .group(1)!
-              .replaceAll(r'/', '/')
-              .replaceAll(r'&', '&')
-              .replaceAll(r'\/', '/');
-        }
-      }
-
-      final scriptMatch = RegExp(
-        r'<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
-        dotAll: true,
-      ).firstMatch(body);
-      if (scriptMatch != null) {
         try {
           final data = jsonDecode(scriptMatch.group(1)!);
-          final videoData = data['__DEFAULT_SCOPE__']?['webapp.video-detail']?['itemInfo']?['itemStruct'];
-          final playAddr = videoData?['video']?['playAddr'] as String?;
-          if (playAddr != null) return playAddr;
-          final bitrateAddr = videoData?['video']?['bitrateInfo']?[0]?['PlayAddr']?['UrlList']?[0] as String?;
+          dynamic itemStruct;
+          if (scriptId == 'api-data') {
+            itemStruct = data['videoDetail']?['itemInfo']?['itemStruct'];
+          } else {
+            final scope = data['__DEFAULT_SCOPE__']?['webapp.video-detail'];
+            itemStruct = scope?['itemInfo']?['itemStruct'];
+          }
+          final video = itemStruct?['video'];
+
+          final playAddr = video?['playAddr'] as String?;
+          if (playAddr != null && playAddr.isNotEmpty) return playAddr;
+
+          final downloadAddr = video?['downloadAddr'] as String?;
+          if (downloadAddr != null && downloadAddr.isNotEmpty) return downloadAddr;
+
+          final bitrateInfo = video?['bitrateInfo'] as List?;
+          final bitrateAddr = bitrateInfo?.isNotEmpty == true
+              ? (bitrateInfo!.first['PlayAddr']?['UrlList'] as List?)?.firstOrNull as String?
+              : null;
           if (bitrateAddr != null) return bitrateAddr;
         } catch (_) {}
       }
+
+      // Last resort: og:video meta tag is plain HTML attribute text, not
+      // JSON-escaped, so a direct regex works fine here.
+      final ogMatch = RegExp(
+        r'<meta\s+property="og:video(?::secure_url)?"\s+content="(https?://[^"]+)"',
+      ).firstMatch(body);
+      if (ogMatch != null) return ogMatch.group(1);
 
       return null;
     } catch (_) {
@@ -698,9 +708,12 @@ class VimeoExtractor extends VideoExtractor {
       videoId ??= _extractVideoId(url);
       if (videoId == null) return null;
 
-      final configUrl = 'https://player.vimeo.com/video/$videoId/config';
+      // player.vimeo.com/video/{id}/config is blocked (403) for direct/hotlinked
+      // requests on current Vimeo infra; the player page HTML embeds the same
+      // config as a JS object (window.playerConfig = {...}), so scrape that instead.
+      final playerUrl = 'https://player.vimeo.com/video/$videoId';
       final response = await http.get(
-        Uri.parse(configUrl),
+        Uri.parse(playerUrl),
         headers: {
           'Referer': url,
           'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36',
@@ -708,7 +721,8 @@ class VimeoExtractor extends VideoExtractor {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) return null;
-      final data = jsonDecode(response.body);
+      final data = _extractPlayerConfig(response.body);
+      if (data == null) return null;
 
       final streams = <VideoStream>[];
       final progressive = data['request']?['files']?['progressive'] as List?;
@@ -723,9 +737,12 @@ class VimeoExtractor extends VideoExtractor {
         }
       }
 
-      final hlsUrl = data['request']?['files']?['hls']?['cdns']?.values?.first?['url'] as String?;
-      if (hlsUrl != null) {
-        streams.add(VideoStream(url: hlsUrl, quality: 'Auto (HLS)', format: 'hls'));
+      final hlsCdns = data['request']?['files']?['hls']?['cdns'] as Map?;
+      if (hlsCdns != null && hlsCdns.isNotEmpty) {
+        final hlsUrl = hlsCdns.values.first['url'] as String?;
+        if (hlsUrl != null) {
+          streams.add(VideoStream(url: hlsUrl, quality: 'Auto (HLS)', format: 'hls'));
+        }
       }
 
       if (streams.isEmpty) return null;
@@ -736,7 +753,7 @@ class VimeoExtractor extends VideoExtractor {
         id: videoId,
         title: title ?? data['video']?['title'] as String? ?? 'Vimeo Video',
         url: url,
-        thumbnailUrl: thumbUrl ?? data['video']?['thumbs']?['640'] as String?,
+        thumbnailUrl: thumbUrl ?? data['video']?['thumbs']?['base'] as String?,
         author: author ?? data['video']?['owner']?['name'] as String?,
         duration: data['video']?['duration'] != null
             ? Duration(seconds: data['video']['duration'] as int)
@@ -744,6 +761,33 @@ class VimeoExtractor extends VideoExtractor {
         source: 'vimeo',
         streams: streams,
       );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic>? _extractPlayerConfig(String html) {
+    final idx = html.indexOf('window.playerConfig');
+    if (idx == -1) return null;
+    final start = html.indexOf('{', idx);
+    if (start == -1) return null;
+
+    var depth = 0;
+    var end = -1;
+    for (var i = start; i < html.length; i++) {
+      if (html[i] == '{') depth++;
+      if (html[i] == '}') {
+        depth--;
+        if (depth == 0) {
+          end = i + 1;
+          break;
+        }
+      }
+    }
+    if (end == -1) return null;
+
+    try {
+      return jsonDecode(html.substring(start, end)) as Map<String, dynamic>;
     } catch (_) {
       return null;
     }
